@@ -44,6 +44,7 @@ namespace HLO
 		soulGemEnabled.store(ini.GetBoolValue("Highlight Categories", "soulGem", true));
 
 		ignoreUnnamed.store(ini.GetBoolValue("Filter", "ignoreUnnamedObjects", true));
+		ignoreEmptyContainers.store(ini.GetBoolValue("Filter", "ignoreEmptyContainers", false));
 
 		if (debug.load())
 		{
@@ -133,6 +134,11 @@ namespace HLO
 			";When true, objects without a display name are never highlighted.\n"
 			";This filters out unnamed activators, furniture, doors, etc.\n"
 			";Default: true");
+
+		ini.SetBoolValue("Filter", "ignoreEmptyContainers", ignoreEmptyContainers.load(),
+			";When true, containers you have already emptied are not highlighted.\n"
+			";Containers you have never opened are always highlighted.\n"
+			";Default: false");
 
 		SI_Error rc = ini.SaveFile(path);
 		if (rc < 0)

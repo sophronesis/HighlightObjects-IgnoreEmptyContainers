@@ -44,6 +44,38 @@ namespace HLO
 			default: return false;
 			}
 		}
+
+		// Containers resolve their leveled loot lazily, so a container without
+		// ExtraContainerChanges has never been initialized and counts as non-empty.
+		// Once initialized, leveled list entries from the base form are ignored:
+		// they were rolled into concrete items in the changes list.
+		bool IsEmptyContainer(RE::TESObjectREFR* a_refr)
+		{
+			if (!a_refr->extraList.HasType(RE::ExtraDataType::kContainerChanges))
+			{
+				return false;
+			}
+
+			auto inventory = a_refr->GetInventory([](RE::TESBoundObject& a_obj) {
+				return !a_obj.Is(RE::FormType::LeveledItem);
+			});
+
+			for (const auto& [obj, data] : inventory)
+			{
+				if (data.first > 0)
+				{
+					return false;
+				}
+			}
+			return true;
+		}
+
+		bool ShouldSkipEmptyContainer(RE::TESObjectREFR* a_refr, RE::TESBoundObject* a_base)
+		{
+			return a_base->Is(RE::FormType::Container) &&
+			       Config::Get().ignoreEmptyContainers.load() &&
+			       IsEmptyContainer(a_refr);
+		}
 	}
 
 	HighlightManager& HighlightManager::Get()
@@ -185,6 +217,11 @@ namespace HLO
 			}
 		}
 
+		if (ShouldSkipEmptyContainer(refr, baseObj))
+		{
+			return;
+		}
+
 		uint32_t idx = crosshairShaderIdx.fetch_add(1) & 3;
 		auto* shader = edgeShaderPool[idx];
 		float duration = Config::Get().crosshairDuration.load();
@@ -297,6 +334,7 @@ namespace HLO
 		int skippedActor = 0;
 		int skippedHarvested = 0;
 		int skippedUnnamed = 0;
+		int skippedEmpty = 0;
 
 		RE::TES::GetSingleton()->ForEachReferenceInRange(player, a_radius,
 			[&](RE::TESObjectREFR* refr) -> RE::BSContainer::ForEachResult {
@@ -361,15 +399,21 @@ namespace HLO
 					return RE::BSContainer::ForEachResult::kContinue;
 				}
 
+				if (ShouldSkipEmptyContainer(refr, baseObj))
+				{
+					++skippedEmpty;
+					return RE::BSContainer::ForEachResult::kContinue;
+				}
+
 				targets.push_back(refr);
 				return RE::BSContainer::ForEachResult::kContinue;
 			});
 
 		if (HLO::Config::Get().debug.load())
 		{
-			logger::info("Area scan: visited={} accepted={} null={} player={} noBase={} wrongType={} disabled={} no3D={} actor={} harvested={} unnamed={}",
+			logger::info("Area scan: visited={} accepted={} null={} player={} noBase={} wrongType={} disabled={} no3D={} actor={} harvested={} unnamed={} empty={}",
 				totalVisited, targets.size(), skippedNull, skippedPlayer, skippedNoBaseObj,
-				skippedFormType, skippedDisabled, skippedNo3D, skippedActor, skippedHarvested, skippedUnnamed);
+				skippedFormType, skippedDisabled, skippedNo3D, skippedActor, skippedHarvested, skippedUnnamed, skippedEmpty);
 		}
 
 		if (targets.empty())

@@ -37,6 +37,7 @@ namespace HLO
 		std::atomic<bool> soulGemEnabled{ true };
 
 		std::atomic<bool> ignoreUnnamed{ true };
+		std::atomic<bool> ignoreEmptyContainers{ false };
 
 	private:
 		Config() = default;

@@ -141,6 +141,17 @@ namespace UI
 			HelpMarker(Strings::Get("$HLO_IgnoreUnnamedHelp$", "When enabled, objects that have no display name will not be highlighted. This filters out unnamed activators, furniture, doors, and other objects."));
 		}
 
+		{
+			bool val = config.ignoreEmptyContainers.load();
+			if (ImGui::Checkbox(Strings::Get("$HLO_IgnoreEmptyContainers$", "Ignore empty containers"), &val))
+			{
+				config.ignoreEmptyContainers.store(val);
+				changed = true;
+			}
+			ImGui::SameLine();
+			HelpMarker(Strings::Get("$HLO_IgnoreEmptyContainersHelp$", "When enabled, containers you have already emptied will not be highlighted. Containers you have never opened are always highlighted, since their leveled loot is not rolled until then."));
+		}
+
 		ImGui::Spacing();
 		ImGui::TextColored(ImVec4(0.7f, 0.85f, 1.0f, 1.0f), "%s", Strings::Get("$HLO_SectionRadius$", "-- Radius Highlight --"));
 		ImGui::Separator();

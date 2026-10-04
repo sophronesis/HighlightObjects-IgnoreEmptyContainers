@@ -1,15 +1,24 @@
 # HighlightObjects - Ignore Empty Containers
 
-> **What this fork adds:** a new filter option, **Ignore empty containers**.
-> When enabled, chests, barrels, sacks etc. that you have already emptied are no
-> longer highlighted, neither under the crosshair nor by the area-scan hotkey.
-> Containers you have never opened are still highlighted, because their leveled
-> loot is not rolled until then. Off by default - turn it on in the SKSE Menu
-> Framework page (F1) or in `HighlightObjects.ini`:
+> **What this fork adds:**
+>
+> - **Ignore empty containers** - chests, barrels, sacks etc. that you have
+>   already emptied are no longer highlighted, neither under the crosshair nor
+>   by the area-scan hotkey. Containers you have never opened are still
+>   highlighted, because their leveled loot is not rolled until then.
+> - **Hotkey toggles highlight** - press the scan hotkey once and everything in
+>   the scan radius stays highlighted until you press it again. The highlight
+>   follows you as you move and drops objects as you loot them.
+>
+> Both are off by default - turn them on in the SKSE Menu Framework page (F1)
+> or in `HighlightObjects.ini`:
 >
 > ```ini
 > [Filter]
 > ignoreEmptyContainers = true
+>
+> [Radius Highlight]
+> scanToggle = true
 > ```
 
 This is the source of [HighlightObjects](https://www.nexusmods.com/skyrimspecialedition/mods/183648)

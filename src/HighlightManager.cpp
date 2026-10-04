@@ -19,6 +19,8 @@ namespace HLO
 		constexpr float CROSSHAIR_FULL_ALPHA = 0.4f;
 		constexpr float SCAN_FULL_ALPHA = 2.6f;
 		constexpr int POLL_INTERVAL_MS = 100;
+		constexpr int TOGGLE_TICK_MS = 500;
+		constexpr float TOGGLE_FULL_ALPHA = 1.0e6f;
 
 		bool IsInteractableFormType(RE::FormType a_type)
 		{
@@ -238,6 +240,7 @@ namespace HLO
 
 	void HighlightManager::PollThreadFunc(std::uint32_t generation)
 	{
+		int toggleTickElapsed = 0;
 		while (pollGeneration.load() == generation)
 		{
 			std::this_thread::sleep_for(std::chrono::milliseconds(POLL_INTERVAL_MS));
@@ -245,6 +248,21 @@ namespace HLO
 			if (pollGeneration.load() != generation || !initialized.load())
 			{
 				return;
+			}
+
+			toggleTickElapsed += POLL_INTERVAL_MS;
+			if (toggleActive.load() && toggleTickElapsed >= TOGGLE_TICK_MS)
+			{
+				toggleTickElapsed = 0;
+				if (auto* taskInt = SKSE::GetTaskInterface())
+				{
+					taskInt->AddTask([this, generation]() {
+						if (pollGeneration.load() == generation)
+						{
+							ToggleTick();
+						}
+					});
+				}
 			}
 
 			if (HLO::Config::Get().radiusHighlightOnly.load())
@@ -302,23 +320,18 @@ namespace HLO
 		}
 	}
 
-	void HighlightManager::ScanAndHighlight(float a_radius)
+	std::vector<RE::TESObjectREFR*> HighlightManager::CollectScanTargets(float a_radius)
 	{
-		if (edgeShaderPool.empty() || !initialized.load())
-		{
-			return;
-		}
-
 		auto* player = RE::PlayerCharacter::GetSingleton();
 		if (!player)
 		{
-			return;
+			return {};
 		}
 
 		auto* cell = player->GetParentCell();
 		if (!cell || !cell->IsAttached())
 		{
-			return;
+			return {};
 		}
 
 		const RE::NiPoint3 playerPos = player->GetPosition();
@@ -416,17 +429,40 @@ namespace HLO
 				skippedFormType, skippedDisabled, skippedNo3D, skippedActor, skippedHarvested, skippedUnnamed, skippedEmpty);
 		}
 
-		if (targets.empty())
-		{
-			return;
-		}
-
 		std::sort(targets.begin(), targets.end(),
 			[playerPos](RE::TESObjectREFR* a, RE::TESObjectREFR* b) {
 				float distA = (a->GetPosition() - playerPos).SqrLength();
 				float distB = (b->GetPosition() - playerPos).SqrLength();
 				return distA < distB;
 			});
+
+		return targets;
+	}
+
+	// Scan shaders normally fade out after their full-alpha time. In toggle mode the
+	// effects run until stopped, so keep them at full alpha for their whole lifetime.
+	void HighlightManager::SetScanShadersPersistent(bool a_persistent)
+	{
+		for (size_t i = 4; i < edgeShaderPool.size(); ++i)
+		{
+			auto& data = edgeShaderPool[i]->data;
+			data.edgeEffectPersistentAlphaRatio = a_persistent ? 1.0f : 0.0f;
+			data.fillTextureEffectPersistentAlphaRatio = a_persistent ? FILL_ALPHA_RATIO : FILL_PERSIST_RATIO;
+		}
+	}
+
+	void HighlightManager::ScanAndHighlight(float a_radius)
+	{
+		if (edgeShaderPool.empty() || !initialized.load())
+		{
+			return;
+		}
+
+		auto targets = CollectScanTargets(a_radius);
+		if (targets.empty())
+		{
+			return;
+		}
 
 		const size_t totalPool = edgeShaderPool.size();
 		if (totalPool < 5)
@@ -435,6 +471,8 @@ namespace HLO
 			return;
 		}
 		const size_t poolSize = totalPool - 4;
+
+		SetScanShadersPersistent(false);
 
 		float scanDuration = Config::Get().scanDuration.load();
 		float scanFullAlpha = scanDuration - 0.4f;
@@ -450,6 +488,109 @@ namespace HLO
 		if (HLO::Config::Get().debug.load())
 		{
 			logger::info("Area scan applied shaders to {} objects (scan pool={}, total={})", targets.size(), poolSize, totalPool);
+		}
+	}
+
+	// Runs on the main thread every TOGGLE_TICK_MS while toggle mode is on: keeps a
+	// persistent scan shader on every eligible object in range and stops the ones on
+	// objects that left the radius or stopped qualifying (looted, harvested, ...).
+	void HighlightManager::ToggleTick()
+	{
+		if (!toggleActive.load() || !initialized.load())
+		{
+			return;
+		}
+
+		if (!Config::Get().scanToggle.load())
+		{
+			StopToggle();
+			return;
+		}
+
+		const size_t totalPool = edgeShaderPool.size();
+		if (totalPool < 5)
+		{
+			return;
+		}
+		const size_t poolSize = totalPool - 4;
+
+		auto targets = CollectScanTargets(Config::Get().scanRadius.load());
+		std::unordered_set<RE::TESObjectREFR*> wanted(targets.begin(), targets.end());
+		std::unordered_set<RE::TESEffectShader*> scanShaders(edgeShaderPool.begin() + 4, edgeShaderPool.end());
+		std::unordered_set<RE::TESObjectREFR*> covered;
+		int stopped = 0;
+
+		if (auto* processLists = RE::ProcessLists::GetSingleton())
+		{
+			processLists->ForEachShaderEffect([&](RE::ShaderReferenceEffect* a_effect) {
+				if (!a_effect || a_effect->finished || !scanShaders.contains(a_effect->effectData))
+				{
+					return RE::BSContainer::ForEachResult::kContinue;
+				}
+
+				auto refPtr = a_effect->target.get();
+				auto* ref = refPtr.get();
+				if (ref && wanted.contains(ref) && !covered.contains(ref))
+				{
+					covered.insert(ref);
+				}
+				else
+				{
+					a_effect->finished = true;
+					++stopped;
+				}
+				return RE::BSContainer::ForEachResult::kContinue;
+			});
+		}
+
+		SetScanShadersPersistent(true);
+
+		int applied = 0;
+		for (auto* refr : targets)
+		{
+			if (covered.contains(refr))
+			{
+				continue;
+			}
+			auto* shader = edgeShaderPool[(toggleShaderIdx++ % poolSize) + 4];
+			shader->data.edgeEffectFullAlphaTime = TOGGLE_FULL_ALPHA;
+			refr->ApplyEffectShader(shader, -1.0f);
+			++applied;
+		}
+
+		if (Config::Get().debug.load() && (applied || stopped))
+		{
+			logger::info("Toggle tick: targets={} applied={} stopped={}", targets.size(), applied, stopped);
+		}
+	}
+
+	// Main thread only.
+	void HighlightManager::StopToggle()
+	{
+		toggleActive.store(false);
+
+		std::unordered_set<RE::TESEffectShader*> scanShaders;
+		if (edgeShaderPool.size() > 4)
+		{
+			scanShaders.insert(edgeShaderPool.begin() + 4, edgeShaderPool.end());
+		}
+
+		if (auto* processLists = RE::ProcessLists::GetSingleton())
+		{
+			processLists->ForEachShaderEffect([&](RE::ShaderReferenceEffect* a_effect) {
+				if (a_effect && scanShaders.contains(a_effect->effectData))
+				{
+					a_effect->finished = true;
+				}
+				return RE::BSContainer::ForEachResult::kContinue;
+			});
+		}
+
+		SetScanShadersPersistent(false);
+
+		if (Config::Get().debug.load())
+		{
+			logger::info("Toggle highlight off");
 		}
 	}
 
@@ -479,6 +620,7 @@ namespace HLO
 		pollThread.reset();
 
 		currentRawHandle.store(0);
+		toggleActive.store(false);
 	}
 
 	HighlightManager::InputEventSink* HighlightManager::InputEventSink::GetSingleton()
@@ -540,6 +682,25 @@ namespace HLO
 			auto* taskInt = SKSE::GetTaskInterface();
 			if (!taskInt)
 			{
+				continue;
+			}
+
+			if (config.scanToggle.load())
+			{
+				auto& manager = HLO::HighlightManager::Get();
+				const bool enable = !manager.toggleActive.load();
+				manager.toggleActive.store(enable);
+				taskInt->AddTask([enable]() {
+					auto& mgr = HLO::HighlightManager::Get();
+					if (enable)
+					{
+						mgr.ToggleTick();
+					}
+					else
+					{
+						mgr.StopToggle();
+					}
+				});
 				continue;
 			}
 

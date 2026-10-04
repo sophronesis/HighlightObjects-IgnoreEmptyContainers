@@ -16,6 +16,7 @@ namespace HLO
 		std::atomic<int32_t> scanHotkeyKeyboard{ -1 };
 		std::atomic<int32_t> scanHotkeyGamepad{ -1 };
 		std::atomic<float> scanRadius{ 1500.0f };
+		std::atomic<bool> scanToggle{ false };
 		std::atomic<float> crosshairDuration{ 0.8f };
 		std::atomic<float> scanDuration{ 3.0f };
 

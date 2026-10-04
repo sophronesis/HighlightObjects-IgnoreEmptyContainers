@@ -23,6 +23,7 @@ namespace HLO
 		scanHotkeyKeyboard.store(static_cast<int32_t>(ini.GetLongValue("Radius Highlight", "scanHotkeyKeyboard", -1)));
 		scanHotkeyGamepad.store(static_cast<int32_t>(ini.GetLongValue("Radius Highlight", "scanHotkeyGamepad", -1)));
 		scanRadius.store(static_cast<float>(ini.GetDoubleValue("Radius Highlight", "scanRadius", 1500.0)));
+		scanToggle.store(ini.GetBoolValue("Radius Highlight", "scanToggle", false));
 		crosshairDuration.store(static_cast<float>(ini.GetDoubleValue("Highlight Duration", "crosshairDuration", 0.8)));
 		scanDuration.store(static_cast<float>(ini.GetDoubleValue("Highlight Duration", "scanDuration", 3.0)));
 
@@ -89,6 +90,10 @@ namespace HLO
 		ini.SetDoubleValue("Radius Highlight", "scanRadius", scanRadius.load(),
 			";Radius in game units around your character to scan for interactive objects.\n"
 			";Default: 1500.0 (approximately 23 meters)");
+		ini.SetBoolValue("Radius Highlight", "scanToggle", scanToggle.load(),
+			";When true, the scan hotkey toggles the radius highlight on and off instead of\n"
+			";highlighting once. While on, everything in the scan radius stays highlighted and\n"
+			";the highlight follows you as you move. Default: false");
 
 		ini.SetDoubleValue("Highlight Duration", "crosshairDuration", crosshairDuration.load(),
 			";Duration in seconds for the crosshair highlight effect.\n"

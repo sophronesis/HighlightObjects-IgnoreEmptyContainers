@@ -18,6 +18,10 @@ namespace HLO
 		void ModifyShaderData();
 		void PollThreadFunc(std::uint32_t generation);
 		void ScanAndHighlight(float a_radius);
+		std::vector<RE::TESObjectREFR*> CollectScanTargets(float a_radius);
+		void SetScanShadersPersistent(bool a_persistent);
+		void ToggleTick();
+		void StopToggle();
 
 		class InputEventSink : public RE::BSTEventSink<RE::InputEvent*>
 		{
@@ -36,6 +40,9 @@ namespace HLO
 
 		std::atomic<bool> initialized{ false };
 		std::atomic<std::uint32_t> pollGeneration{ 0 };
+
+		std::atomic<bool> toggleActive{ false };
+		std::uint32_t toggleShaderIdx{ 0 };
 
 		std::unique_ptr<std::thread> pollThread;
 	};

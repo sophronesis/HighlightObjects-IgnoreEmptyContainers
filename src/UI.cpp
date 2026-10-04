@@ -183,6 +183,17 @@ namespace UI
 			HelpMarker(Strings::Get("$ScanRadiusHelp$", "Radius in game units around your character to scan for interactive objects. Larger values cover more area."));
 		}
 
+		{
+			bool val = config.scanToggle.load();
+			if (ImGui::Checkbox(Strings::Get("$HLO_ScanToggle$", "Hotkey toggles highlight"), &val))
+			{
+				config.scanToggle.store(val);
+				changed = true;
+			}
+			ImGui::SameLine();
+			HelpMarker(Strings::Get("$HLO_ScanToggleHelp$", "When enabled, the scan hotkey turns the radius highlight on until you press it again, instead of highlighting once. While on, the highlight follows you and updates as objects are looted or come into range."));
+		}
+
 		ImGui::Spacing();
 		ImGui::TextColored(ImVec4(0.7f, 0.85f, 1.0f, 1.0f), "%s", Strings::Get("$HLO_SectionHotkeys$", "-- Hotkeys --"));
 		ImGui::Separator();

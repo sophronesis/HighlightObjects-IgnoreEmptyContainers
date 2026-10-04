@@ -11,6 +11,7 @@
 #include <memory>
 #include <string>
 #include <thread>
+#include <unordered_set>
 #include <vector>
 
 namespace logger = SKSE::log;

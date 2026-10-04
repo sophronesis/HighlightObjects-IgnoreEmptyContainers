@@ -258,7 +258,7 @@ namespace HLO
 				continue;
 			}
 
-			std::uint32_t rawHandle = crosshair->target.native_handle();
+			std::uint32_t rawHandle = crosshair->GetActiveTarget().native_handle();
 
 			if (rawHandle == 0 || rawHandle == 0xFFFFFFFF)
 			{
@@ -291,7 +291,7 @@ namespace HLO
 					return;
 				}
 
-				auto refrPtr = crosshair2->target.get();
+				auto refrPtr = crosshair2->GetActiveTarget().get();
 				auto* refr = refrPtr.get();
 
 				if (refr && refr != RE::PlayerCharacter::GetSingleton())

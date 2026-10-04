@@ -4,6 +4,10 @@
 #include "Config.h"
 #include "Strings.h"
 
+// SKSE Menu Framework 3 headers expose the ImGui API under ImGuiMCP
+namespace ImGui = ImGuiMCP;
+using namespace ImGuiMCP;
+
 namespace
 {
 	const char* dxKbNames[] = {

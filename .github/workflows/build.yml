@@ -1,0 +1,36 @@
+name: build
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: xmake-io/github-action-setup-xmake@v1
+        with:
+          xmake-version: latest
+          actions-cache-folder: .xmake-cache
+
+      - name: Configure
+        run: xmake config --mode=releasedbg --yes
+
+      - name: Build
+        run: xmake build --yes --verbose
+
+      - name: Collect
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist/SKSE/Plugins | Out-Null
+          Get-ChildItem -Recurse build -Include HighlightObjects.dll,HighlightObjects.pdb | Copy-Item -Destination dist/SKSE/Plugins
+          Get-ChildItem -Recurse dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HighlightObjects
+          path: dist/
